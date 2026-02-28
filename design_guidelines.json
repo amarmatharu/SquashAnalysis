@@ -1,0 +1,151 @@
+{
+  "identity": {
+    "name": "SquashSense AI",
+    "archetype": "The Kinetic Analyst",
+    "tone": "Precision, Athletic, High-Velocity, Data-Driven",
+    "vibe": "Elite Sports Tech meets Cyberpunk Analytics"
+  },
+  "typography": {
+    "primary": {
+      "family": "Barlow Condensed",
+      "usage": "Headings, Hero Text, Big Stats",
+      "weights": ["400", "700", "900"],
+      "letterSpacing": "tracking-tight"
+    },
+    "secondary": {
+      "family": "Inter",
+      "usage": "Body text, UI labels, Tooltips",
+      "weights": ["400", "500", "600"],
+      "letterSpacing": "tracking-normal"
+    },
+    "mono": {
+      "family": "JetBrains Mono",
+      "usage": "Data tables, timestamps, coordinates, code snippets",
+      "weights": ["400", "500"]
+    }
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": {
+        "default": "#050505",
+        "surface": "#0A0A0A",
+        "surface_elevated": "#121212",
+        "overlay": "rgba(5, 5, 5, 0.8)"
+      },
+      "primary": {
+        "main": "#DFFF00",
+        "hover": "#C2E000",
+        "text": "#050505",
+        "description": "Volt Yellow - Represents the squash ball and high energy"
+      },
+      "secondary": {
+        "main": "#00F0FF",
+        "hover": "#00D0DF",
+        "text": "#050505",
+        "description": "Electric Cyan - For opponent data or secondary metrics"
+      },
+      "accent": {
+        "hot": "#FF3B30",
+        "cold": "#30D158",
+        "warning": "#FF9F0A"
+      },
+      "text": {
+        "primary": "#EDEDED",
+        "secondary": "#A1A1AA",
+        "muted": "#52525B"
+      },
+      "border": {
+        "default": "#27272A",
+        "active": "#DFFF00",
+        "subtle": "#18181B"
+      }
+    },
+    "gradients": {
+      "hero": "linear-gradient(135deg, #050505 0%, #121212 100%)",
+      "glow": "radial-gradient(circle at center, rgba(223, 255, 0, 0.15) 0%, transparent 70%)",
+      "glass": "linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)"
+    }
+  },
+  "visual_enhancers": {
+    "borders": {
+      "style": "1px solid",
+      "radius": "rounded-none md:rounded-lg",
+      "glass_border": "1px solid rgba(255, 255, 255, 0.08)"
+    },
+    "shadows": {
+      "card": "0 4px 24px -1px rgba(0, 0, 0, 0.3)",
+      "glow": "0 0 20px rgba(223, 255, 0, 0.15)"
+    },
+    "textures": {
+      "grid": "linear-gradient(to right, #18181B 1px, transparent 1px), linear-gradient(to bottom, #18181B 1px, transparent 1px)",
+      "noise": "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E\")"
+    }
+  },
+  "layout_strategy": {
+    "dashboard": {
+      "type": "Bento Grid",
+      "grid_cols": "grid-cols-1 md:grid-cols-4 lg:grid-cols-12",
+      "gap": "gap-4 md:gap-6",
+      "padding": "p-4 md:p-6 lg:p-8"
+    },
+    "marketing": {
+      "type": "Asymmetric Tetris",
+      "grid_cols": "grid-cols-1 md:grid-cols-12",
+      "gap": "gap-8 lg:gap-12",
+      "padding": "p-6 md:p-12 lg:p-24"
+    }
+  },
+  "components": {
+    "VideoPlayer": {
+      "description": "Custom video player with overlay canvas for drawing shot trajectories. Controls should be minimal and floating.",
+      "styles": "relative aspect-video bg-black rounded-lg overflow-hidden border border-border shadow-2xl",
+      "features": ["Frame-by-frame seeking", "Canvas overlay", "Slow motion"]
+    },
+    "CourtHeatmap": {
+      "description": "Top-down view of a squash court showing player movement density.",
+      "styles": "aspect-[3/4] bg-[#1a1a1a] relative border border-border/50",
+      "library": "Recharts (Scatter) or D3.js",
+      "colors": ["#DFFF00 (High)", "#30D158 (Med)", "#00F0FF (Low)"]
+    },
+    "StatCard": {
+      "description": "Minimalist card with large metric and sparkline.",
+      "styles": "bg-card border border-border p-6 flex flex-col justify-between hover:border-primary/50 transition-colors duration-300",
+      "typography": "Label: text-sm text-muted-foreground | Value: text-4xl font-bold font-primary tracking-tighter"
+    },
+    "RallyTimeline": {
+      "description": "Horizontal bar chart showing rally length and winner.",
+      "styles": "w-full h-12 bg-secondary/10 rounded-sm overflow-hidden flex",
+      "usage": "Green segment = Win, Red segment = Loss"
+    }
+  },
+  "image_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1771909720886-a90afd1b37f5?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "description": "Dark abstract indoor arena texture. Use with heavy overlay (opacity 0.8).",
+      "category": "background"
+    },
+    "equipment_texture": {
+      "url": "https://images.unsplash.com/photo-1623562658671-6dd7644bbaa6?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "description": "Close up of racket mesh/texture. Good for 'About' or 'Technology' section backgrounds.",
+      "category": "texture"
+    },
+    "fallback_player": {
+      "url": "https://images.unsplash.com/photo-1761286753856-2f39b4413c1c?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "description": "Silhouette of player. Use only if 3D viz is not available.",
+      "category": "hero"
+    }
+  },
+  "universal_guidelines": [
+    "NEVER use gradients on text unless it's a very large heading (6xl+).",
+    "ALWAYS use the 'Volt Green' (#DFFF00) for the primary call-to-action button.",
+    "Data visualization colors must be accessible against the dark background.",
+    "Use 'Barlow Condensed' for all numbers and metrics to give that 'scoreboard' feel.",
+    "Dashboard widgets should use a 'glass border' effect: border-white/10.",
+    "Interactive elements must have a 'glow' effect on hover: shadow-[0_0_15px_rgba(223,255,0,0.3)].",
+    "Avoid 'Tennis' imagery at all costs. If no Squash image is available, use abstract geometric shapes or wireframes.",
+    "Video player controls should be 'floating' and disappear when not hovering.",
+    "Use 'sonner' for all toast notifications."
+  ],
+  "instructions_to_main_agent": "1. Install 'Barlow Condensed', 'Inter', and 'JetBrains Mono' via Google Fonts or Fontsource. 2. Configure Tailwind with the custom colors defined in this JSON. 3. Build the 'Analysis Dashboard' first as it's the core value. 4. Use the 'Bento Grid' layout for the dashboard. 5. Implement the video player with a transparent canvas overlay for future AI drawing drawing."
+}
