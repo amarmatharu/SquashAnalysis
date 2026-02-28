@@ -223,6 +223,7 @@ const AnalysisPage = () => {
               onClick={() => fetchMatch()}
               disabled={refreshing}
               data-testid="refresh-btn"
+              className="relative z-10"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
