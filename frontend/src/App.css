@@ -1,34 +1,177 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* App-specific styles */
+.App {
+    min-height: 100vh;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
+/* Hero section background */
+.hero-bg {
+    background: 
+        radial-gradient(circle at 20% 50%, rgba(223, 255, 0, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
+        #050505;
+}
+
+/* Bento grid */
+.bento-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .bento-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
     }
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+@media (min-width: 1024px) {
+    .bento-grid {
+        grid-template-columns: repeat(12, 1fr);
+    }
 }
 
-.App-link {
-    color: #61dafb;
+/* Court heatmap */
+.court-container {
+    aspect-ratio: 3/4;
+    background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-@keyframes App-logo-spin {
+.court-line {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Chart container */
+.chart-container {
+    width: 100%;
+    height: 100%;
+    min-height: 200px;
+}
+
+/* Rally timeline */
+.rally-bar {
+    transition: all 0.3s ease;
+}
+
+.rally-bar:hover {
+    transform: scaleY(1.1);
+}
+
+/* Video player wrapper */
+.video-wrapper {
+    position: relative;
+    aspect-ratio: 16/9;
+    background: #000;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.video-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Floating controls */
+.floating-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.video-wrapper:hover .floating-controls {
+    opacity: 1;
+}
+
+/* Stat value animation */
+.stat-value {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Loading skeleton */
+.skeleton-pulse {
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 0.8;
+    }
+}
+
+/* Navigation */
+.nav-link {
+    position: relative;
+    padding: 0.5rem 1rem;
+    transition: color 0.2s ease;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: #DFFF00;
+    transition: all 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+    width: 80%;
+}
+
+/* Card shine effect */
+.card-shine {
+    position: relative;
+    overflow: hidden;
+}
+
+.card-shine::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        45deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.03) 50%,
+        transparent 70%
+    );
+    transform: rotate(45deg);
+    animation: shine 8s infinite linear;
+}
+
+@keyframes shine {
     from {
-        transform: rotate(0deg);
+        transform: translateX(-100%) rotate(45deg);
     }
     to {
-        transform: rotate(360deg);
+        transform: translateX(100%) rotate(45deg);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .stat-card {
+        padding: 1rem;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
     }
 }
