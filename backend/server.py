@@ -173,7 +173,7 @@ Respond ONLY with valid JSON in this exact format:
         
         user_message = UserMessage(
             text=f"Analyze this squash match frame (frame #{frame_number}). {context}",
-            image_contents=[image_content]
+            file_contents=[image_content]
         )
         
         response = await chat.send_message(user_message)
