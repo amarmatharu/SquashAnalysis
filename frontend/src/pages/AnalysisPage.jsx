@@ -286,6 +286,53 @@ const AnalysisPage = () => {
           )}
         </div>
 
+        {/* Player Identification Cards */}
+        {(match.player1_frame || match.player2_frame) && (
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className="bg-card border border-primary/50 rounded-lg p-4 flex items-center gap-4">
+              {match.player1_frame ? (
+                <img 
+                  src={`data:image/jpeg;base64,${match.player1_frame}`}
+                  alt="Player 1"
+                  className="w-20 h-16 object-cover rounded-lg border-2 border-primary"
+                />
+              ) : (
+                <div className="w-20 h-16 bg-primary/20 rounded-lg flex items-center justify-center">
+                  <Users className="w-8 h-8 text-primary" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-primary"></span>
+                  <span className="font-heading text-xl font-bold text-primary">{match.player1_name || "Player 1"}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">Shown in yellow/green in charts</p>
+              </div>
+            </div>
+            
+            <div className="bg-card border border-[#00F0FF]/50 rounded-lg p-4 flex items-center gap-4">
+              {match.player2_frame ? (
+                <img 
+                  src={`data:image/jpeg;base64,${match.player2_frame}`}
+                  alt="Player 2"
+                  className="w-20 h-16 object-cover rounded-lg border-2 border-[#00F0FF]"
+                />
+              ) : (
+                <div className="w-20 h-16 bg-[#00F0FF]/20 rounded-lg flex items-center justify-center">
+                  <Users className="w-8 h-8 text-[#00F0FF]" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#00F0FF]"></span>
+                  <span className="font-heading text-xl font-bold text-[#00F0FF]">{match.player2_name || "Player 2"}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">Shown in cyan/blue in charts</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="stat-card rounded-lg" data-testid="stat-total-shots">

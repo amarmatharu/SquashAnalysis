@@ -21,8 +21,6 @@ const UploadPage = () => {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
-  const [player1Name, setPlayer1Name] = useState("");
-  const [player2Name, setPlayer2Name] = useState("");
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -74,8 +72,6 @@ const UploadPage = () => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", title || "Untitled Match");
-    formData.append("player1_name", player1Name || "Player 1");
-    formData.append("player2_name", player2Name || "Player 2");
 
     try {
       const response = await axios.post(`${API}/matches/upload`, formData, {
@@ -147,39 +143,9 @@ const UploadPage = () => {
               data-testid="match-title-input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Quarter Finals vs John Smith"
+              placeholder="e.g., Quarter Finals Match"
               className="bg-card border-border focus:border-primary h-12"
             />
-          </div>
-
-          {/* Player Names */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-primary"></span>
-                Player 1 Name
-              </label>
-              <Input
-                data-testid="player1-name-input"
-                value={player1Name}
-                onChange={(e) => setPlayer1Name(e.target.value)}
-                placeholder="e.g., Mohamed ElShorbagy"
-                className="bg-card border-border focus:border-primary h-12"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-[#00F0FF]"></span>
-                Player 2 Name
-              </label>
-              <Input
-                data-testid="player2-name-input"
-                value={player2Name}
-                onChange={(e) => setPlayer2Name(e.target.value)}
-                placeholder="e.g., Ali Farag"
-                className="bg-card border-border focus:border-primary h-12"
-              />
-            </div>
           </div>
 
           {/* Upload Zone */}

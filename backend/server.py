@@ -311,13 +311,16 @@ async def extract_player_frames(video_path: str) -> tuple:
     try:
         cap = cv2.VideoCapture(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
         
-        # Get frame from 10% into video for player 1
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(total_frames * 0.1))
+        # Get frame from ~5 seconds into video for player 1
+        frame1_pos = min(int(fps * 5), total_frames - 1)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame1_pos)
         ret1, frame1 = cap.read()
         
-        # Get frame from 50% into video for player 2
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(total_frames * 0.5))
+        # Get frame from ~15 seconds into video for player 2
+        frame2_pos = min(int(fps * 15), total_frames - 1)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame2_pos)
         ret2, frame2 = cap.read()
         
         cap.release()
@@ -326,13 +329,18 @@ async def extract_player_frames(video_path: str) -> tuple:
         player2_frame = None
         
         if ret1:
-            frame1 = cv2.resize(frame1, (200, 150))
-            _, buffer1 = cv2.imencode('.jpg', frame1, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            # Crop to show more of the court/player area
+            h, w = frame1.shape[:2]
+            frame1 = frame1[int(h*0.1):int(h*0.9), int(w*0.1):int(w*0.9)]
+            frame1 = cv2.resize(frame1, (240, 180))
+            _, buffer1 = cv2.imencode('.jpg', frame1, [cv2.IMWRITE_JPEG_QUALITY, 80])
             player1_frame = base64.b64encode(buffer1).decode('utf-8')
         
         if ret2:
-            frame2 = cv2.resize(frame2, (200, 150))
-            _, buffer2 = cv2.imencode('.jpg', frame2, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            h, w = frame2.shape[:2]
+            frame2 = frame2[int(h*0.1):int(h*0.9), int(w*0.1):int(w*0.9)]
+            frame2 = cv2.resize(frame2, (240, 180))
+            _, buffer2 = cv2.imencode('.jpg', frame2, [cv2.IMWRITE_JPEG_QUALITY, 80])
             player2_frame = base64.b64encode(buffer2).decode('utf-8')
         
         return player1_frame, player2_frame
@@ -604,11 +612,7 @@ async def health_check():
 async def upload_match(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    title: str = "Untitled Match",
-    player1_name: str = "Player 1",
-    player2_name: str = "Player 2",
-    player1_description: str = "",
-    player2_description: str = ""
+    title: str = "Untitled Match"
 ):
     """Upload a squash match video for analysis"""
     
@@ -634,10 +638,6 @@ async def upload_match(
     match = MatchAnalysis(
         title=title,
         video_filename=unique_filename,
-        player1_name=player1_name,
-        player2_name=player2_name,
-        player1_description=player1_description,
-        player2_description=player2_description,
         status="pending"
     )
     
