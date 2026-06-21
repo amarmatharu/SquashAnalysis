@@ -88,17 +88,8 @@ const UploadPage = () => {
         },
       });
 
-      toast.success("Video uploaded! Now identify the players.");
-      
-      // Navigate to player selection with match data
-      navigate("/identify-players", {
-        state: {
-          matchId: response.data.id,
-          thumbnail: response.data.thumbnail,
-          player1Name: player1Name || "Player 1",
-          player2Name: player2Name || "Player 2"
-        }
-      });
+      toast.success("Video uploaded! Analysis starting...");
+      navigate(`/analysis/${response.data.id}`);
     } catch (error) {
       console.error("Upload error:", error);
       toast.error(error.response?.data?.detail || "Upload failed. Please try again.");

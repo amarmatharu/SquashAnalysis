@@ -646,8 +646,8 @@ async def upload_match(
     
     await db.matches.insert_one(match_dict)
     
-    # Don't start analysis yet - wait for player selection
-    # Analysis will start when /set-players is called
+    # Start background analysis immediately
+    background_tasks.add_task(process_video_analysis, match.id, str(file_path))
     
     return match
 
