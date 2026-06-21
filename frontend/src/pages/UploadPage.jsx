@@ -23,8 +23,6 @@ const UploadPage = () => {
   const [title, setTitle] = useState("");
   const [player1Name, setPlayer1Name] = useState("");
   const [player2Name, setPlayer2Name] = useState("");
-  const [player1Description, setPlayer1Description] = useState("");
-  const [player2Description, setPlayer2Description] = useState("");
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -78,8 +76,6 @@ const UploadPage = () => {
     formData.append("title", title || "Untitled Match");
     formData.append("player1_name", player1Name || "Player 1");
     formData.append("player2_name", player2Name || "Player 2");
-    formData.append("player1_description", player1Description || "");
-    formData.append("player2_description", player2Description || "");
 
     try {
       const response = await axios.post(`${API}/matches/upload`, formData, {
@@ -92,8 +88,17 @@ const UploadPage = () => {
         },
       });
 
-      toast.success("Video uploaded! Analysis started.");
-      navigate(`/analysis/${response.data.id}`);
+      toast.success("Video uploaded! Now identify the players.");
+      
+      // Navigate to player selection with match data
+      navigate("/identify-players", {
+        state: {
+          matchId: response.data.id,
+          thumbnail: response.data.thumbnail,
+          player1Name: player1Name || "Player 1",
+          player2Name: player2Name || "Player 2"
+        }
+      });
     } catch (error) {
       console.error("Upload error:", error);
       toast.error(error.response?.data?.detail || "Upload failed. Please try again.");
@@ -183,39 +188,6 @@ const UploadPage = () => {
                 placeholder="e.g., Ali Farag"
                 className="bg-card border-border focus:border-primary h-12"
               />
-            </div>
-          </div>
-
-          {/* Player Identification - How to tell them apart */}
-          <div className="bg-card border border-border rounded-lg p-4">
-            <h3 className="font-heading text-lg font-bold mb-3 flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary" />
-              Player Identification
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Help the AI identify each player by describing what they're wearing or their position
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-primary">Player 1 wears...</label>
-                <Input
-                  data-testid="player1-description-input"
-                  value={player1Description}
-                  onChange={(e) => setPlayer1Description(e.target.value)}
-                  placeholder="e.g., red shirt, left side at start"
-                  className="bg-background border-border focus:border-primary"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-[#00F0FF]">Player 2 wears...</label>
-                <Input
-                  data-testid="player2-description-input"
-                  value={player2Description}
-                  onChange={(e) => setPlayer2Description(e.target.value)}
-                  placeholder="e.g., blue shirt, right side at start"
-                  className="bg-background border-border focus:border-[#00F0FF]"
-                />
-              </div>
             </div>
           </div>
 

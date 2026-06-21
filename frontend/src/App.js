@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import LandingPage from "./pages/LandingPage";
 import UploadPage from "./pages/UploadPage";
+import PlayerSelectPage from "./pages/PlayerSelectPage";
 import DashboardPage from "./pages/DashboardPage";
 import HistoryPage from "./pages/HistoryPage";
 import AnalysisPage from "./pages/AnalysisPage";
@@ -14,6 +15,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/upload" element={<UploadPage />} />
+          <Route path="/identify-players" element={<PlayerSelectPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/analysis/:matchId" element={<AnalysisPage />} />

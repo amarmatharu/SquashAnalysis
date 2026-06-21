@@ -160,11 +160,12 @@ async def analyze_frame_with_ai(frame_base64: str, frame_number: int, context: s
         
         # Build player identification context
         player_context = ""
+        p1_name = player_info.get('player1_name', 'Player 1') if player_info else 'Player 1'
+        p2_name = player_info.get('player2_name', 'Player 2') if player_info else 'Player 2'
+        
         if player_info:
             p1_desc = player_info.get('player1_description', '')
             p2_desc = player_info.get('player2_description', '')
-            p1_name = player_info.get('player1_name', 'Player 1')
-            p2_name = player_info.get('player2_name', 'Player 2')
             
             if p1_desc or p2_desc:
                 player_context = f"""
@@ -174,16 +175,18 @@ IMPORTANT - Player Identification:
 Use these descriptions to correctly identify which player is making each shot.
 """
         
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"squash-analysis-{uuid.uuid4()}",
-            system_message=f"""You are an expert squash match analyst. Analyze the frame from a squash match video and identify:
+        system_message = f"""You are an expert squash match analyst. Analyze the frame from a squash match video.
+
+The user has identified:
+- {p1_name} = player1 (reference image provided first)
+- {p2_name} = player2 (reference image provided second)
+
+Identify:
 1. Shot type being played (drive, drop, boast, volley, lob, kill, serve, or none if between shots)
-2. Which player is making the shot (use the player descriptions to identify them)
+2. Which player is making the shot - match them to the reference images
 3. Player positions on court (front, mid, back for each player)
-4. Court coverage areas
-5. Swing mechanics if visible (forehand/backhand, racket preparation, follow-through)
-6. Rally state (active, point won, between rallies)
+4. Swing mechanics if visible (forehand/backhand)
+5. Rally state (active, point won, between rallies)
 {player_context}
 Respond ONLY with valid JSON in this exact format:
 {{
@@ -198,13 +201,37 @@ Respond ONLY with valid JSON in this exact format:
     "confidence": 0.0-1.0,
     "notes": "brief observation"
 }}"""
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"squash-analysis-{uuid.uuid4()}",
+            system_message=system_message
         ).with_model("openai", "gpt-5.2")
         
-        image_content = ImageContent(image_base64=frame_base64)
+        # Build image contents - include player reference frames if available
+        image_contents = []
+        
+        # Add player reference frames first for context
+        p1_frame = player_info.get('player1_frame') if player_info else None
+        p2_frame = player_info.get('player2_frame') if player_info else None
+        
+        if p1_frame:
+            image_contents.append(ImageContent(image_base64=p1_frame))
+        if p2_frame:
+            image_contents.append(ImageContent(image_base64=p2_frame))
+        
+        # Add the current frame to analyze
+        image_contents.append(ImageContent(image_base64=frame_base64))
+        
+        prompt_text = f"Analyze this squash match frame (frame #{frame_number}). {context}"
+        if p1_frame and p2_frame:
+            prompt_text = f"The first image is {p1_name} (player1), the second image is {p2_name} (player2). The third image is the frame to analyze (frame #{frame_number}). {context}"
+        elif p1_frame or p2_frame:
+            prompt_text = f"The first image is a player reference. The second image is the frame to analyze (frame #{frame_number}). {context}"
         
         user_message = UserMessage(
-            text=f"Analyze this squash match frame (frame #{frame_number}). {context}",
-            file_contents=[image_content]
+            text=prompt_text,
+            file_contents=image_contents
         )
         
         response = await chat.send_message(user_message)
@@ -322,7 +349,9 @@ async def process_video_analysis(match_id: str, video_path: str):
             "player1_name": match_doc.get("player1_name", "Player 1"),
             "player2_name": match_doc.get("player2_name", "Player 2"),
             "player1_description": match_doc.get("player1_description", ""),
-            "player2_description": match_doc.get("player2_description", "")
+            "player2_description": match_doc.get("player2_description", ""),
+            "player1_frame": match_doc.get("player1_frame"),
+            "player2_frame": match_doc.get("player2_frame")
         }
         
         # Update status to processing
@@ -617,8 +646,8 @@ async def upload_match(
     
     await db.matches.insert_one(match_dict)
     
-    # Start background analysis
-    background_tasks.add_task(process_video_analysis, match.id, str(file_path))
+    # Don't start analysis yet - wait for player selection
+    # Analysis will start when /set-players is called
     
     return match
 
@@ -662,6 +691,35 @@ async def delete_match(match_id: str):
     await db.matches.delete_one({"id": match_id})
     
     return {"message": "Match deleted successfully"}
+
+class SetPlayersRequest(BaseModel):
+    player1_frame: str
+    player2_frame: str
+
+@api_router.post("/matches/{match_id}/set-players")
+async def set_player_frames(match_id: str, request: SetPlayersRequest, background_tasks: BackgroundTasks):
+    """Set player reference frames and start analysis"""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    # Update player frames
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {
+            "player1_frame": request.player1_frame,
+            "player2_frame": request.player2_frame,
+            "status": "processing",
+            "progress": 5
+        }}
+    )
+    
+    # Start background analysis
+    video_path = UPLOAD_DIR / match["video_filename"]
+    background_tasks.add_task(process_video_analysis, match_id, str(video_path))
+    
+    return {"message": "Players set, analysis started"}
 
 @api_router.get("/matches/{match_id}/export/json")
 async def export_match_json(match_id: str):
