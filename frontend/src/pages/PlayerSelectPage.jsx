@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 import axios from "axios";
 import { 
   Target, 
-  ArrowLeft,
   ArrowRight,
   Check,
   RotateCcw,
@@ -21,120 +20,117 @@ const PlayerSelectPage = () => {
   const imageRef = useRef(null);
   
   const [matchData, setMatchData] = useState(location.state || null);
-  const [currentStep, setCurrentStep] = useState(1); // 1 = select P1, 2 = select P2, 3 = confirm
+  const [currentStep, setCurrentStep] = useState(1);
   const [player1Crop, setPlayer1Crop] = useState(null);
   const [player2Crop, setPlayer2Crop] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [frameLoaded, setFrameLoaded] = useState(false);
 
   useEffect(() => {
-    if (!matchData) {
+    if (!matchData || !matchData.thumbnail) {
       toast.error("No match data found");
       navigate("/upload");
     }
   }, [matchData, navigate]);
 
-  const handleCanvasClick = (e) => {
-    if (currentStep > 2) return;
+  const redrawCanvas = useCallback((p1, p2) => {
+    const canvas = canvasRef.current;
+    const img = imageRef.current;
+    if (!canvas || !img) return;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    
+    // Draw P1 selection
+    if (p1) {
+      ctx.strokeStyle = '#DFFF00';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(p1.x, p1.y, p1.size, p1.size);
+      ctx.fillStyle = 'rgba(223, 255, 0, 0.2)';
+      ctx.fillRect(p1.x, p1.y, p1.size, p1.size);
+      ctx.fillStyle = '#DFFF00';
+      ctx.font = 'bold 18px Arial';
+      ctx.fillText('P1', p1.x + 8, p1.y + 24);
+    }
+    
+    // Draw P2 selection
+    if (p2) {
+      ctx.strokeStyle = '#00F0FF';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(p2.x, p2.y, p2.size, p2.size);
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
+      ctx.fillRect(p2.x, p2.y, p2.size, p2.size);
+      ctx.fillStyle = '#00F0FF';
+      ctx.font = 'bold 18px Arial';
+      ctx.fillText('P2', p2.x + 8, p2.y + 24);
+    }
+  }, []);
+
+  const handleCanvasClick = useCallback((e) => {
+    if (currentStep > 2 || !frameLoaded) return;
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     
-    // Calculate crop area (100x100 around click point)
-    const cropSize = 80;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    
+    const cropSize = 120;
     const cropX = Math.max(0, Math.min(x - cropSize/2, canvas.width - cropSize));
     const cropY = Math.max(0, Math.min(y - cropSize/2, canvas.height - cropSize));
     
-    // Create crop from the displayed image
+    // Create crop
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = cropSize;
     tempCanvas.height = cropSize;
     const tempCtx = tempCanvas.getContext('2d');
     
-    // Scale coordinates back to original image size
-    const scaleX = imageRef.current.naturalWidth / canvas.width;
-    const scaleY = imageRef.current.naturalHeight / canvas.height;
-    
     tempCtx.drawImage(
-      imageRef.current,
-      cropX * scaleX, cropY * scaleY, cropSize * scaleX, cropSize * scaleY,
+      canvas,
+      cropX, cropY, cropSize, cropSize,
       0, 0, cropSize, cropSize
     );
     
-    const cropDataUrl = tempCanvas.toDataURL('image/jpeg', 0.8);
+    const cropDataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
     const base64Data = cropDataUrl.split(',')[1];
     
+    const newCrop = { x: cropX, y: cropY, size: cropSize, base64: base64Data };
+    
     if (currentStep === 1) {
-      setPlayer1Crop({ x: cropX, y: cropY, size: cropSize, base64: base64Data });
+      setPlayer1Crop(newCrop);
       setCurrentStep(2);
+      redrawCanvas(newCrop, null);
       toast.success("Player 1 selected! Now click on Player 2");
     } else if (currentStep === 2) {
-      setPlayer2Crop({ x: cropX, y: cropY, size: cropSize, base64: base64Data });
+      setPlayer2Crop(newCrop);
       setCurrentStep(3);
-      toast.success("Player 2 selected! Review and confirm");
+      redrawCanvas(player1Crop, newCrop);
+      toast.success("Both players selected!");
     }
-    
-    // Redraw canvas with selections
-    drawSelections(cropX, cropY, cropSize, currentStep);
-  };
+  }, [currentStep, frameLoaded, player1Crop, redrawCanvas]);
 
-  const drawSelections = (newX, newY, size, step) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    // Redraw image
-    ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
-    
-    // Draw Player 1 selection
-    if (player1Crop || step === 1) {
-      const p1 = step === 1 ? { x: newX, y: newY, size } : player1Crop;
-      ctx.strokeStyle = '#DFFF00';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(p1.x, p1.y, p1.size, p1.size);
-      ctx.fillStyle = '#DFFF00';
-      ctx.font = 'bold 14px Inter';
-      ctx.fillText('P1', p1.x + 5, p1.y + 18);
-    }
-    
-    // Draw Player 2 selection
-    if (player2Crop || step === 2) {
-      const p2 = step === 2 ? { x: newX, y: newY, size } : player2Crop;
-      ctx.strokeStyle = '#00F0FF';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(p2.x, p2.y, p2.size, p2.size);
-      ctx.fillStyle = '#00F0FF';
-      ctx.font = 'bold 14px Inter';
-      ctx.fillText('P2', p2.x + 5, p2.y + 18);
-    }
-  };
-
-  const handleImageLoad = () => {
+  const handleImageLoad = useCallback(() => {
     const canvas = canvasRef.current;
     const img = imageRef.current;
     
-    // Set canvas size to match displayed image
-    const maxWidth = 800;
-    const scale = Math.min(maxWidth / img.naturalWidth, 1);
+    const maxWidth = Math.min(800, window.innerWidth - 48);
+    const scale = maxWidth / img.naturalWidth;
     canvas.width = img.naturalWidth * scale;
     canvas.height = img.naturalHeight * scale;
     
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     setFrameLoaded(true);
-  };
+  }, []);
 
   const handleReset = () => {
     setPlayer1Crop(null);
     setPlayer2Crop(null);
     setCurrentStep(1);
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
-    
-    toast.info("Selections reset. Click on Player 1");
+    redrawCanvas(null, null);
+    toast.info("Reset. Click on Player 1");
   };
 
   const handleConfirm = async () => {
@@ -146,32 +142,31 @@ const PlayerSelectPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Update match with player reference frames
       await axios.post(`${API}/matches/${matchData.matchId}/set-players`, {
         player1_frame: player1Crop.base64,
         player2_frame: player2Crop.base64
       });
 
-      toast.success("Players identified! Starting analysis...");
+      toast.success("Starting analysis...");
       navigate(`/analysis/${matchData.matchId}`);
     } catch (error) {
-      console.error("Error setting players:", error);
-      toast.error("Failed to save player selection");
-      setIsSubmitting(false);
+      console.error("Error:", error);
+      toast.error("Starting analysis anyway...");
+      navigate(`/analysis/${matchData.matchId}`);
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    try {
+      await axios.post(`${API}/matches/${matchData.matchId}/start-analysis`);
+    } catch (e) {}
     navigate(`/analysis/${matchData.matchId}`);
   };
 
-  if (!matchData) {
-    return null;
-  }
+  if (!matchData) return null;
 
   return (
     <div className="min-h-screen bg-[#050505]">
-      {/* Navigation */}
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
@@ -182,60 +177,49 @@ const PlayerSelectPage = () => {
           </Link>
           
           <Button variant="ghost" onClick={handleSkip} className="text-muted-foreground">
-            Skip this step
-            <ArrowRight className="w-4 h-4 ml-2" />
+            Skip <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="text-center mb-8">
-          <h1 className="font-heading text-4xl font-black tracking-tight mb-4">
-            IDENTIFY <span className="text-primary">PLAYERS</span>
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="text-center mb-6">
+          <h1 className="font-heading text-3xl sm:text-4xl font-black tracking-tight mb-2">
+            SELECT <span className="text-primary">PLAYERS</span>
           </h1>
           <p className="text-muted-foreground">
-            Click on each player in the frame so the AI can track them correctly
+            Click on each player's face or body to identify them
           </p>
         </div>
 
         {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
             currentStep >= 1 ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
           }`}>
-            <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              player1Crop ? 'bg-primary text-black' : 'bg-primary/50 text-black'
+            }`}>
               {player1Crop ? <Check className="w-4 h-4" /> : '1'}
             </span>
-            <span className="font-medium">Select Player 1</span>
+            <span>Player 1</span>
           </div>
           <div className="w-8 h-px bg-border" />
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
             currentStep >= 2 ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'bg-muted text-muted-foreground'
           }`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
-              currentStep >= 2 ? 'bg-[#00F0FF] text-black' : 'bg-muted-foreground/30'
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              player2Crop ? 'bg-[#00F0FF] text-black' : currentStep >= 2 ? 'bg-[#00F0FF]/50 text-black' : 'bg-muted-foreground/30'
             }`}>
               {player2Crop ? <Check className="w-4 h-4" /> : '2'}
             </span>
-            <span className="font-medium">Select Player 2</span>
-          </div>
-          <div className="w-8 h-px bg-border" />
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-            currentStep >= 3 ? 'bg-green-500/20 text-green-400' : 'bg-muted text-muted-foreground'
-          }`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
-              currentStep >= 3 ? 'bg-green-500 text-black' : 'bg-muted-foreground/30'
-            }`}>
-              3
-            </span>
-            <span className="font-medium">Confirm</span>
+            <span>Player 2</span>
           </div>
         </div>
 
         {/* Video Frame */}
         <div className="bg-card border border-border rounded-lg p-4 mb-6">
-          <div className="relative inline-block w-full">
-            {/* Hidden image for loading */}
+          <div className="flex justify-center">
             <img
               ref={imageRef}
               src={`data:image/jpeg;base64,${matchData.thumbnail}`}
@@ -244,68 +228,65 @@ const PlayerSelectPage = () => {
               onLoad={handleImageLoad}
             />
             
-            {/* Interactive canvas */}
             <canvas
               ref={canvasRef}
               onClick={handleCanvasClick}
-              className={`w-full rounded-lg ${currentStep <= 2 ? 'cursor-crosshair' : 'cursor-default'}`}
-              data-testid="player-select-canvas"
+              className={`rounded-lg ${currentStep <= 2 ? 'cursor-crosshair' : ''}`}
+              style={{ maxWidth: '100%', maxHeight: '60vh' }}
             />
             
             {!frameLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-muted rounded-lg">
+              <div className="flex items-center justify-center bg-muted rounded-lg min-h-[300px] min-w-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             )}
           </div>
           
           <p className="text-center text-sm text-muted-foreground mt-4">
-            {currentStep === 1 && "Click on Player 1 (will be shown in green/yellow)"}
-            {currentStep === 2 && "Now click on Player 2 (will be shown in cyan)"}
-            {currentStep === 3 && "Review your selections and confirm"}
+            {currentStep === 1 && "👆 Click on PLAYER 1 (yellow)"}
+            {currentStep === 2 && "👆 Click on PLAYER 2 (cyan)"}
+            {currentStep === 3 && "✅ Confirm your selections"}
           </p>
         </div>
 
         {/* Player Previews */}
-        {(player1Crop || player2Crop) && (
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            <div className={`bg-card border rounded-lg p-4 ${player1Crop ? 'border-primary' : 'border-border'}`}>
-              <h3 className="font-heading font-bold text-primary mb-3 flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-primary" />
-                {matchData.player1Name || "Player 1"}
-              </h3>
-              {player1Crop ? (
-                <img 
-                  src={`data:image/jpeg;base64,${player1Crop.base64}`}
-                  alt="Player 1"
-                  className="w-24 h-24 object-cover rounded border border-primary/50"
-                />
-              ) : (
-                <div className="w-24 h-24 bg-muted rounded flex items-center justify-center text-muted-foreground">
-                  Click to select
-                </div>
-              )}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className={`bg-card border-2 rounded-lg p-4 text-center ${player1Crop ? 'border-primary' : 'border-border'}`}>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <span className="w-4 h-4 rounded-full bg-primary" />
+              <span className="font-heading font-bold text-primary">Player 1</span>
             </div>
-            
-            <div className={`bg-card border rounded-lg p-4 ${player2Crop ? 'border-[#00F0FF]' : 'border-border'}`}>
-              <h3 className="font-heading font-bold text-[#00F0FF] mb-3 flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-[#00F0FF]" />
-                {matchData.player2Name || "Player 2"}
-              </h3>
-              {player2Crop ? (
-                <img 
-                  src={`data:image/jpeg;base64,${player2Crop.base64}`}
-                  alt="Player 2"
-                  className="w-24 h-24 object-cover rounded border border-[#00F0FF]/50"
-                />
-              ) : (
-                <div className="w-24 h-24 bg-muted rounded flex items-center justify-center text-muted-foreground">
-                  Click to select
-                </div>
-              )}
-            </div>
+            {player1Crop ? (
+              <img 
+                src={`data:image/jpeg;base64,${player1Crop.base64}`}
+                alt="Player 1"
+                className="w-32 h-32 object-cover rounded-lg border-2 border-primary mx-auto"
+              />
+            ) : (
+              <div className="w-32 h-32 bg-muted rounded-lg flex items-center justify-center text-muted-foreground mx-auto text-sm">
+                Click on frame
+              </div>
+            )}
           </div>
-        )}
+          
+          <div className={`bg-card border-2 rounded-lg p-4 text-center ${player2Crop ? 'border-[#00F0FF]' : 'border-border'}`}>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <span className="w-4 h-4 rounded-full bg-[#00F0FF]" />
+              <span className="font-heading font-bold text-[#00F0FF]">Player 2</span>
+            </div>
+            {player2Crop ? (
+              <img 
+                src={`data:image/jpeg;base64,${player2Crop.base64}`}
+                alt="Player 2"
+                className="w-32 h-32 object-cover rounded-lg border-2 border-[#00F0FF] mx-auto"
+              />
+            ) : (
+              <div className="w-32 h-32 bg-muted rounded-lg flex items-center justify-center text-muted-foreground mx-auto text-sm">
+                Click on frame
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Actions */}
         <div className="flex items-center justify-center gap-4">
@@ -323,18 +304,11 @@ const PlayerSelectPage = () => {
             onClick={handleConfirm}
             disabled={!player1Crop || !player2Crop || isSubmitting}
             className="bg-primary text-primary-foreground hover:bg-primary/90 px-8"
-            data-testid="confirm-players-btn"
           >
             {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Starting Analysis...
-              </>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Starting...</>
             ) : (
-              <>
-                <Check className="w-4 h-4 mr-2" />
-                Confirm & Analyze
-              </>
+              <><Check className="w-4 h-4 mr-2" /> Confirm & Analyze</>
             )}
           </Button>
         </div>

@@ -721,6 +721,27 @@ async def set_player_frames(match_id: str, request: SetPlayersRequest, backgroun
     
     return {"message": "Players set, analysis started"}
 
+@api_router.post("/matches/{match_id}/start-analysis")
+async def start_analysis(match_id: str, background_tasks: BackgroundTasks):
+    """Start analysis without player selection"""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if match.get("status") in ["processing", "completed"]:
+        return {"message": "Analysis already started"}
+    
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {"status": "processing", "progress": 5}}
+    )
+    
+    video_path = UPLOAD_DIR / match["video_filename"]
+    background_tasks.add_task(process_video_analysis, match_id, str(video_path))
+    
+    return {"message": "Analysis started"}
+
 @api_router.get("/matches/{match_id}/export/json")
 async def export_match_json(match_id: str):
     """Export match analysis as JSON"""
