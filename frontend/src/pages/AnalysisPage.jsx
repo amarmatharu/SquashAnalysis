@@ -22,7 +22,9 @@ import {
   TrendingUp,
   Clock,
   FileJson,
-  FileText
+  FileText,
+  Edit2,
+  Brain
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,6 +32,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
+import ShotCorrectionModal from "../components/ShotCorrectionModal";
+import TrainingStats from "../components/TrainingStats";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -49,6 +53,7 @@ const AnalysisPage = () => {
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [correctionModal, setCorrectionModal] = useState({ isOpen: false, shot: null, index: -1 });
 
   useEffect(() => {
     fetchMatch();
@@ -117,6 +122,35 @@ const AnalysisPage = () => {
     } catch (error) {
       toast.error("Export failed");
     }
+  };
+
+  const handleCorrectionSaved = (shotIndex, newShotType, newPlayer) => {
+    if (!match) return;
+    const updatedShots = [...match.shots];
+    updatedShots[shotIndex] = {
+      ...updatedShots[shotIndex],
+      shot_type: newShotType,
+      player: newPlayer,
+      user_corrected: true
+    };
+    
+    // Recalculate shot distribution
+    const newDistribution = { drive: 0, drop: 0, boast: 0, volley: 0, lob: 0, kill: 0, serve: 0 };
+    updatedShots.forEach(shot => {
+      if (newDistribution[shot.shot_type] !== undefined) {
+        newDistribution[shot.shot_type]++;
+      }
+    });
+    
+    setMatch({
+      ...match,
+      shots: updatedShots,
+      shot_distribution: newDistribution
+    });
+  };
+
+  const openCorrectionModal = (shot, index) => {
+    setCorrectionModal({ isOpen: true, shot, index });
   };
 
   const formatDuration = (seconds) => {
@@ -372,7 +406,7 @@ const AnalysisPage = () => {
 
         {/* Analysis Tabs */}
         <Tabs defaultValue="shots" className="space-y-6">
-          <TabsList className="bg-card border border-border p-1">
+          <TabsList className="bg-card border border-border p-1 flex-wrap">
             <TabsTrigger value="shots" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Shot Analysis
             </TabsTrigger>
@@ -387,6 +421,10 @@ const AnalysisPage = () => {
             </TabsTrigger>
             <TabsTrigger value="insights" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               Insights
+            </TabsTrigger>
+            <TabsTrigger value="training" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Brain className="w-4 h-4 mr-1" />
+              AI Training
             </TabsTrigger>
           </TabsList>
 
@@ -433,8 +471,13 @@ const AnalysisPage = () => {
 
               {/* Shot List */}
               <div className="stat-card rounded-lg">
-                <h3 className="font-heading text-xl font-bold mb-4">Shot Breakdown</h3>
-                <div className="space-y-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-heading text-xl font-bold">Shot Breakdown</h3>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Edit2 className="w-3 h-3" /> Click shots below to correct
+                  </span>
+                </div>
+                <div className="space-y-3 mb-6">
                   {Object.entries(match.shot_distribution || {}).map(([shot, count]) => (
                     <div key={shot} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -452,6 +495,47 @@ const AnalysisPage = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+                
+                {/* Individual Shots - Clickable for correction */}
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-3">All Shots (click to correct)</h4>
+                  <ScrollArea className="h-48">
+                    <div className="space-y-2">
+                      {(match.shots || []).map((shot, idx) => (
+                        <div 
+                          key={idx}
+                          onClick={() => openCorrectionModal(shot, idx)}
+                          className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                            shot.user_corrected 
+                              ? 'bg-green-500/10 border border-green-500/30' 
+                              : 'bg-muted/30 hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-muted-foreground w-8">#{idx + 1}</span>
+                            <div 
+                              className="w-2 h-2 rounded-full"
+                              style={{ background: SHOT_COLORS[shot.shot_type] || "#888" }}
+                            />
+                            <span className="text-sm capitalize">{shot.shot_type}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs ${shot.player === 'player1' ? 'text-primary' : 'text-[#00F0FF]'}`}>
+                              {shot.player === 'player1' ? 'P1' : 'P2'}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {shot.timestamp?.toFixed(1)}s
+                            </span>
+                            {shot.user_corrected && (
+                              <span className="text-xs text-green-400">✓</span>
+                            )}
+                            <Edit2 className="w-3 h-3 text-muted-foreground" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               </div>
             </div>
@@ -731,8 +815,45 @@ const AnalysisPage = () => {
               )}
             </div>
           </TabsContent>
+
+          {/* AI Training Tab */}
+          <TabsContent value="training" className="space-y-6">
+            <TrainingStats />
+            
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h3 className="font-heading text-xl font-bold mb-4 flex items-center gap-2">
+                <Brain className="w-5 h-5 text-primary" />
+                How to Help Train the AI
+              </h3>
+              <div className="space-y-4 text-sm text-muted-foreground">
+                <p>
+                  Every correction you make helps improve the AI's accuracy. Here's how it works:
+                </p>
+                <ol className="list-decimal list-inside space-y-2 ml-2">
+                  <li>Go to the <strong className="text-foreground">Shot Analysis</strong> tab</li>
+                  <li>Click on any shot in the list to open the correction modal</li>
+                  <li>Select the correct shot type and player</li>
+                  <li>Your correction is saved as training data</li>
+                </ol>
+                <p className="mt-4">
+                  Once we collect <strong className="text-primary">100+ corrections</strong>, we can fine-tune 
+                  a custom model specifically for squash analysis, making future analyses much more accurate.
+                </p>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Shot Correction Modal */}
+      <ShotCorrectionModal
+        isOpen={correctionModal.isOpen}
+        onClose={() => setCorrectionModal({ isOpen: false, shot: null, index: -1 })}
+        shot={correctionModal.shot}
+        shotIndex={correctionModal.index}
+        matchId={matchId}
+        onCorrectionSaved={handleCorrectionSaved}
+      />
     </div>
   );
 };

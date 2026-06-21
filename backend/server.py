@@ -22,6 +22,11 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+import mediapipe as mp
+
+# Initialize MediaPipe
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -87,6 +92,26 @@ class SwingAnalysis(BaseModel):
     racket_preparation: str = ""
     follow_through: str = ""
 
+# Training Data Models
+class ShotCorrection(BaseModel):
+    match_id: str
+    shot_index: int
+    original_shot_type: str
+    corrected_shot_type: str
+    original_player: str
+    corrected_player: str
+    timestamp: float
+    frame_base64: Optional[str] = None
+    pose_data: Optional[Dict[str, Any]] = None
+    corrected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    verified: bool = False  # For quality control
+
+class TrainingDataStats(BaseModel):
+    total_corrections: int
+    corrections_by_shot_type: Dict[str, int]
+    verified_samples: int
+    model_accuracy_estimate: float
+
 class MatchAnalysis(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -147,6 +172,135 @@ class MatchAnalysisResponse(BaseModel):
     swing_analysis: List[Dict[str, Any]]
     key_insights: List[str]
     thumbnail: Optional[str] = None
+
+# ===================== POSE ESTIMATION =====================
+
+def analyze_pose(frame: np.ndarray) -> Dict[str, Any]:
+    """Analyze player pose using MediaPipe"""
+    try:
+        with mp_pose.Pose(
+            static_image_mode=True,
+            model_complexity=1,
+            enable_segmentation=False,
+            min_detection_confidence=0.5
+        ) as pose:
+            # Convert BGR to RGB
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(rgb_frame)
+            
+            if not results.pose_landmarks:
+                return {"detected": False}
+            
+            landmarks = results.pose_landmarks.landmark
+            
+            # Extract key points for squash analysis
+            pose_data = {
+                "detected": True,
+                "landmarks": {},
+                "swing_analysis": {}
+            }
+            
+            # Key landmarks for squash
+            key_points = {
+                "left_shoulder": mp_pose.PoseLandmark.LEFT_SHOULDER,
+                "right_shoulder": mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                "left_elbow": mp_pose.PoseLandmark.LEFT_ELBOW,
+                "right_elbow": mp_pose.PoseLandmark.RIGHT_ELBOW,
+                "left_wrist": mp_pose.PoseLandmark.LEFT_WRIST,
+                "right_wrist": mp_pose.PoseLandmark.RIGHT_WRIST,
+                "left_hip": mp_pose.PoseLandmark.LEFT_HIP,
+                "right_hip": mp_pose.PoseLandmark.RIGHT_HIP,
+                "left_knee": mp_pose.PoseLandmark.LEFT_KNEE,
+                "right_knee": mp_pose.PoseLandmark.RIGHT_KNEE,
+                "left_ankle": mp_pose.PoseLandmark.LEFT_ANKLE,
+                "right_ankle": mp_pose.PoseLandmark.RIGHT_ANKLE,
+            }
+            
+            for name, landmark_id in key_points.items():
+                lm = landmarks[landmark_id]
+                pose_data["landmarks"][name] = {
+                    "x": lm.x,
+                    "y": lm.y,
+                    "z": lm.z,
+                    "visibility": lm.visibility
+                }
+            
+            # Analyze swing mechanics
+            left_wrist = landmarks[mp_pose.PoseLandmark.LEFT_WRIST]
+            right_wrist = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
+            left_shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER]
+            right_shoulder = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER]
+            
+            # Determine dominant hand position (racket hand)
+            left_arm_raised = left_wrist.y < left_shoulder.y
+            right_arm_raised = right_wrist.y < right_shoulder.y
+            
+            # Estimate swing type based on arm position relative to body center
+            body_center_x = (left_shoulder.x + right_shoulder.x) / 2
+            
+            if right_arm_raised and right_wrist.visibility > 0.5:
+                if right_wrist.x > body_center_x:
+                    swing_type = "forehand"
+                else:
+                    swing_type = "backhand"
+            elif left_arm_raised and left_wrist.visibility > 0.5:
+                if left_wrist.x < body_center_x:
+                    swing_type = "forehand"
+                else:
+                    swing_type = "backhand"
+            else:
+                swing_type = "unknown"
+            
+            # Analyze stance
+            left_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP]
+            right_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
+            hip_width = abs(left_hip.x - right_hip.x)
+            
+            if hip_width > 0.15:
+                stance = "wide"
+            elif hip_width > 0.08:
+                stance = "normal"
+            else:
+                stance = "narrow"
+            
+            # Calculate arm extension (0-1, 1 being fully extended)
+            def calculate_extension(shoulder, elbow, wrist):
+                # Simple approximation of arm extension
+                arm_length = ((shoulder.x - wrist.x)**2 + (shoulder.y - wrist.y)**2)**0.5
+                return min(1.0, arm_length / 0.4)  # Normalize
+            
+            right_extension = calculate_extension(
+                landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER],
+                landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW],
+                landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
+            )
+            
+            pose_data["swing_analysis"] = {
+                "swing_type": swing_type,
+                "stance": stance,
+                "arm_extension": round(right_extension, 2),
+                "left_arm_raised": left_arm_raised,
+                "right_arm_raised": right_arm_raised
+            }
+            
+            return pose_data
+            
+    except Exception as e:
+        logger.error(f"Pose analysis error: {str(e)}")
+        return {"detected": False, "error": str(e)}
+
+def draw_pose_on_frame(frame: np.ndarray, pose_results) -> np.ndarray:
+    """Draw pose landmarks on frame"""
+    annotated = frame.copy()
+    if pose_results and pose_results.pose_landmarks:
+        mp_drawing.draw_landmarks(
+            annotated,
+            pose_results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+            mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+        )
+    return annotated
 
 # ===================== AI ANALYSIS =====================
 
@@ -275,12 +429,16 @@ async def extract_frames(video_path: str, sample_rate: int = 30) -> List[tuple]:
                 
             if frame_count % frame_interval == 0:
                 # Resize for efficiency
-                frame = cv2.resize(frame, (640, 480))
+                frame_resized = cv2.resize(frame, (640, 480))
                 # Convert to base64
-                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                _, buffer = cv2.imencode('.jpg', frame_resized, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_base64 = base64.b64encode(buffer).decode('utf-8')
                 timestamp = frame_count / fps if fps > 0 else 0
-                frames.append((frame_base64, timestamp, frame_count))
+                
+                # Analyze pose
+                pose_data = analyze_pose(frame_resized)
+                
+                frames.append((frame_base64, timestamp, frame_count, frame_resized, pose_data))
             
             frame_count += 1
             
@@ -424,7 +582,9 @@ async def process_video_analysis(match_id: str, video_path: str):
         # Sample every Nth frame for AI analysis (to manage API costs)
         sample_every = max(1, total_frames // 20)  # Analyze ~20 frames
         
-        for idx, (frame_base64, timestamp, frame_num) in enumerate(frames):
+        for idx, frame_data in enumerate(frames):
+            frame_base64, timestamp, frame_num, frame_raw, pose_data = frame_data
+            
             if idx % sample_every != 0:
                 continue
                 
@@ -437,11 +597,24 @@ async def process_video_analysis(match_id: str, video_path: str):
             
             # Analyze frame with AI
             context = f"Previous shot: {shots[-1]['shot_type'] if shots else 'none'}"
+            
+            # Add pose context if available
+            if pose_data.get("detected"):
+                swing_info = pose_data.get("swing_analysis", {})
+                context += f". Pose detected: swing_type={swing_info.get('swing_type', 'unknown')}, stance={swing_info.get('stance', 'unknown')}"
+            
             analysis = await analyze_frame_with_ai(frame_base64, frame_num, context, player_info)
             
             if analysis.get("shot_detected"):
                 shot_type = analysis.get("shot_type", "drive")
                 active_player = analysis.get("active_player", "player1")
+                
+                # Use pose data to enhance swing type detection
+                swing_type = analysis.get("swing_type", "forehand")
+                if pose_data.get("detected"):
+                    pose_swing = pose_data.get("swing_analysis", {}).get("swing_type")
+                    if pose_swing and pose_swing != "unknown":
+                        swing_type = pose_swing
                 
                 shot = {
                     "shot_type": shot_type,
@@ -449,9 +622,12 @@ async def process_video_analysis(match_id: str, video_path: str):
                     "player": active_player,
                     "success": analysis.get("confidence", 0.5) > 0.3,
                     "court_position": analysis.get(f"{active_player}_position", "mid"),
-                    "swing_type": analysis.get("swing_type", "forehand"),
+                    "swing_type": swing_type,
                     "confidence": analysis.get("confidence", 0.5),
-                    "notes": analysis.get("notes", "")
+                    "notes": analysis.get("notes", ""),
+                    "pose_data": pose_data if pose_data.get("detected") else None,
+                    "frame_base64": frame_base64[:100] + "..." if frame_base64 else None,  # Store truncated for reference
+                    "user_corrected": False
                 }
                 shots.append(shot)
                 
@@ -836,6 +1012,132 @@ async def export_match_pdf(match_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=squashsense_{match_id}.pdf"}
     )
+
+# ===================== TRAINING DATA ENDPOINTS =====================
+
+class CorrectionRequest(BaseModel):
+    shot_index: int
+    corrected_shot_type: str
+    corrected_player: str
+
+@api_router.post("/matches/{match_id}/correct-shot")
+async def correct_shot(match_id: str, correction: CorrectionRequest):
+    """Submit a shot correction - this data is used for training"""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    shots = match.get("shots", [])
+    if correction.shot_index >= len(shots):
+        raise HTTPException(status_code=400, detail="Invalid shot index")
+    
+    original_shot = shots[correction.shot_index]
+    
+    # Store correction for training
+    correction_doc = {
+        "id": str(uuid.uuid4()),
+        "match_id": match_id,
+        "shot_index": correction.shot_index,
+        "original_shot_type": original_shot.get("shot_type"),
+        "corrected_shot_type": correction.corrected_shot_type,
+        "original_player": original_shot.get("player"),
+        "corrected_player": correction.corrected_player,
+        "timestamp": original_shot.get("timestamp"),
+        "pose_data": original_shot.get("pose_data"),
+        "corrected_at": datetime.now(timezone.utc).isoformat(),
+        "verified": False
+    }
+    
+    await db.training_corrections.insert_one(correction_doc)
+    
+    # Update the shot in the match
+    shots[correction.shot_index]["shot_type"] = correction.corrected_shot_type
+    shots[correction.shot_index]["player"] = correction.corrected_player
+    shots[correction.shot_index]["user_corrected"] = True
+    
+    # Recalculate shot distribution
+    shot_distribution = {"drive": 0, "drop": 0, "boast": 0, "volley": 0, "lob": 0, "kill": 0, "serve": 0}
+    for shot in shots:
+        st = shot.get("shot_type", "drive")
+        if st in shot_distribution:
+            shot_distribution[st] += 1
+    
+    await db.matches.update_one(
+        {"id": match_id},
+        {"$set": {"shots": shots, "shot_distribution": shot_distribution}}
+    )
+    
+    return {"message": "Correction saved", "correction_id": correction_doc["id"]}
+
+@api_router.get("/training/stats")
+async def get_training_stats():
+    """Get training data statistics"""
+    total_corrections = await db.training_corrections.count_documents({})
+    
+    # Get corrections by shot type
+    pipeline = [
+        {"$group": {"_id": "$corrected_shot_type", "count": {"$sum": 1}}}
+    ]
+    corrections_by_type = {}
+    async for doc in db.training_corrections.aggregate(pipeline):
+        corrections_by_type[doc["_id"]] = doc["count"]
+    
+    verified_count = await db.training_corrections.count_documents({"verified": True})
+    
+    # Estimate accuracy based on correction rate
+    total_shots = await db.matches.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$total_shots"}}}
+    ]).to_list(1)
+    total_shots_count = total_shots[0]["total"] if total_shots else 0
+    
+    accuracy_estimate = 1.0 - (total_corrections / max(1, total_shots_count))
+    
+    return {
+        "total_corrections": total_corrections,
+        "corrections_by_shot_type": corrections_by_type,
+        "verified_samples": verified_count,
+        "model_accuracy_estimate": round(max(0, accuracy_estimate) * 100, 1),
+        "total_shots_analyzed": total_shots_count,
+        "training_ready": total_corrections >= 100  # Need at least 100 corrections
+    }
+
+@api_router.get("/training/export")
+async def export_training_data():
+    """Export training data for model fine-tuning"""
+    corrections = await db.training_corrections.find({}, {"_id": 0}).to_list(10000)
+    
+    # Format for training
+    training_data = []
+    for c in corrections:
+        training_data.append({
+            "shot_type": c.get("corrected_shot_type"),
+            "player": c.get("corrected_player"),
+            "timestamp": c.get("timestamp"),
+            "pose_data": c.get("pose_data"),
+            "original_prediction": c.get("original_shot_type")
+        })
+    
+    return {
+        "count": len(training_data),
+        "data": training_data,
+        "export_time": datetime.now(timezone.utc).isoformat()
+    }
+
+@api_router.get("/matches/{match_id}/shots-with-frames")
+async def get_shots_with_frames(match_id: str):
+    """Get shots with their frame data for correction UI"""
+    match = await db.matches.find_one({"id": match_id}, {"_id": 0})
+    
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    # Return shots with pose data
+    return {
+        "match_id": match_id,
+        "shots": match.get("shots", []),
+        "total_shots": match.get("total_shots", 0)
+    }
 
 # Include the router in the main app
 app.include_router(api_router)
