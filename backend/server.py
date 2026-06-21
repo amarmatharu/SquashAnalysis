@@ -130,12 +130,12 @@ class MatchAnalysisResponse(BaseModel):
     duration: float
     status: str
     progress: int
-    player1_name: str
-    player2_name: str
-    player1_description: str
-    player2_description: str
-    player1_frame: Optional[str]
-    player2_frame: Optional[str]
+    player1_name: str = "Player 1"
+    player2_name: str = "Player 2"
+    player1_description: str = ""
+    player2_description: str = ""
+    player1_frame: Optional[str] = None
+    player2_frame: Optional[str] = None
     total_shots: int
     total_rallies: int
     shots: List[Dict[str, Any]]
@@ -146,7 +146,7 @@ class MatchAnalysisResponse(BaseModel):
     movement_data: List[Dict[str, Any]]
     swing_analysis: List[Dict[str, Any]]
     key_insights: List[str]
-    thumbnail: Optional[str]
+    thumbnail: Optional[str] = None
 
 # ===================== AI ANALYSIS =====================
 
@@ -644,10 +644,15 @@ async def upload_match(
     match_dict = match.model_dump()
     match_dict["upload_time"] = match_dict["upload_time"].isoformat()
     
+    # Generate thumbnail immediately for player selection
+    thumbnail = await generate_thumbnail(str(file_path))
+    if thumbnail:
+        match_dict["thumbnail"] = thumbnail
+        match.thumbnail = thumbnail
+    
     await db.matches.insert_one(match_dict)
     
-    # Start background analysis immediately
-    background_tasks.add_task(process_video_analysis, match.id, str(file_path))
+    # Don't start analysis - wait for player selection via /set-players or /start-analysis
     
     return match
 

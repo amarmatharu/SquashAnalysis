@@ -85,6 +85,8 @@ const UploadPage = () => {
       });
 
       toast.success("Video uploaded! Now identify the players.");
+      console.log("Upload response:", response.data);
+      console.log("Thumbnail:", response.data.thumbnail ? "exists" : "missing");
       navigate("/identify-players", {
         state: {
           matchId: response.data.id,

@@ -27,8 +27,10 @@ const PlayerSelectPage = () => {
   const [frameLoaded, setFrameLoaded] = useState(false);
 
   useEffect(() => {
+    console.log("PlayerSelectPage matchData:", matchData);
     if (!matchData || !matchData.thumbnail) {
-      toast.error("No match data found");
+      console.log("Missing data, redirecting. matchData:", matchData);
+      toast.error("No video frame available");
       navigate("/upload");
     }
   }, [matchData, navigate]);
