@@ -97,9 +97,11 @@ class MatchAnalysis(BaseModel):
     status: str = "pending"  # pending, processing, completed, failed
     progress: int = 0  # 0-100
     
-    # Player names
+    # Player names and identification
     player1_name: str = "Player 1"
     player2_name: str = "Player 2"
+    player1_description: str = ""  # How to identify player 1 (shirt color, etc.)
+    player2_description: str = ""  # How to identify player 2
     player1_frame: Optional[str] = None  # Base64 frame showing player 1
     player2_frame: Optional[str] = None  # Base64 frame showing player 2
     
@@ -130,6 +132,8 @@ class MatchAnalysisResponse(BaseModel):
     progress: int
     player1_name: str
     player2_name: str
+    player1_description: str
+    player2_description: str
     player1_frame: Optional[str]
     player2_frame: Optional[str]
     total_shots: int
@@ -146,7 +150,7 @@ class MatchAnalysisResponse(BaseModel):
 
 # ===================== AI ANALYSIS =====================
 
-async def analyze_frame_with_ai(frame_base64: str, frame_number: int, context: str = "") -> Dict[str, Any]:
+async def analyze_frame_with_ai(frame_base64: str, frame_number: int, context: str = "", player_info: dict = None) -> Dict[str, Any]:
     """Analyze a single frame using GPT-5.2 vision"""
     try:
         api_key = os.environ.get('EMERGENT_LLM_KEY')
@@ -154,18 +158,35 @@ async def analyze_frame_with_ai(frame_base64: str, frame_number: int, context: s
             logger.error("EMERGENT_LLM_KEY not found")
             return {}
         
+        # Build player identification context
+        player_context = ""
+        if player_info:
+            p1_desc = player_info.get('player1_description', '')
+            p2_desc = player_info.get('player2_description', '')
+            p1_name = player_info.get('player1_name', 'Player 1')
+            p2_name = player_info.get('player2_name', 'Player 2')
+            
+            if p1_desc or p2_desc:
+                player_context = f"""
+IMPORTANT - Player Identification:
+- {p1_name} (player1): {p1_desc if p1_desc else 'not specified'}
+- {p2_name} (player2): {p2_desc if p2_desc else 'not specified'}
+Use these descriptions to correctly identify which player is making each shot.
+"""
+        
         chat = LlmChat(
             api_key=api_key,
             session_id=f"squash-analysis-{uuid.uuid4()}",
-            system_message="""You are an expert squash match analyst. Analyze the frame from a squash match video and identify:
+            system_message=f"""You are an expert squash match analyst. Analyze the frame from a squash match video and identify:
 1. Shot type being played (drive, drop, boast, volley, lob, kill, serve, or none if between shots)
-2. Player positions on court (front, mid, back for each player)
-3. Court coverage areas
-4. Swing mechanics if visible (forehand/backhand, racket preparation, follow-through)
-5. Rally state (active, point won, between rallies)
-
+2. Which player is making the shot (use the player descriptions to identify them)
+3. Player positions on court (front, mid, back for each player)
+4. Court coverage areas
+5. Swing mechanics if visible (forehand/backhand, racket preparation, follow-through)
+6. Rally state (active, point won, between rallies)
+{player_context}
 Respond ONLY with valid JSON in this exact format:
-{
+{{
     "shot_detected": true/false,
     "shot_type": "drive/drop/boast/volley/lob/kill/serve/none",
     "active_player": "player1/player2/none",
@@ -176,7 +197,7 @@ Respond ONLY with valid JSON in this exact format:
     "rally_state": "active/point_won/between_rallies",
     "confidence": 0.0-1.0,
     "notes": "brief observation"
-}"""
+}}"""
         ).with_model("openai", "gpt-5.2")
         
         image_content = ImageContent(image_base64=frame_base64)
@@ -295,6 +316,15 @@ async def extract_player_frames(video_path: str) -> tuple:
 async def process_video_analysis(match_id: str, video_path: str):
     """Background task to process video and run AI analysis"""
     try:
+        # Get match info for player descriptions
+        match_doc = await db.matches.find_one({"id": match_id}, {"_id": 0})
+        player_info = {
+            "player1_name": match_doc.get("player1_name", "Player 1"),
+            "player2_name": match_doc.get("player2_name", "Player 2"),
+            "player1_description": match_doc.get("player1_description", ""),
+            "player2_description": match_doc.get("player2_description", "")
+        }
+        
         # Update status to processing
         await db.matches.update_one(
             {"id": match_id},
@@ -370,7 +400,7 @@ async def process_video_analysis(match_id: str, video_path: str):
             
             # Analyze frame with AI
             context = f"Previous shot: {shots[-1]['shot_type'] if shots else 'none'}"
-            analysis = await analyze_frame_with_ai(frame_base64, frame_num, context)
+            analysis = await analyze_frame_with_ai(frame_base64, frame_num, context, player_info)
             
             if analysis.get("shot_detected"):
                 shot_type = analysis.get("shot_type", "drive")
@@ -547,7 +577,9 @@ async def upload_match(
     file: UploadFile = File(...),
     title: str = "Untitled Match",
     player1_name: str = "Player 1",
-    player2_name: str = "Player 2"
+    player2_name: str = "Player 2",
+    player1_description: str = "",
+    player2_description: str = ""
 ):
     """Upload a squash match video for analysis"""
     
@@ -575,6 +607,8 @@ async def upload_match(
         video_filename=unique_filename,
         player1_name=player1_name,
         player2_name=player2_name,
+        player1_description=player1_description,
+        player2_description=player2_description,
         status="pending"
     )
     
