@@ -97,6 +97,12 @@ class MatchAnalysis(BaseModel):
     status: str = "pending"  # pending, processing, completed, failed
     progress: int = 0  # 0-100
     
+    # Player names
+    player1_name: str = "Player 1"
+    player2_name: str = "Player 2"
+    player1_frame: Optional[str] = None  # Base64 frame showing player 1
+    player2_frame: Optional[str] = None  # Base64 frame showing player 2
+    
     # Analysis results
     total_shots: int = 0
     total_rallies: int = 0
@@ -122,6 +128,10 @@ class MatchAnalysisResponse(BaseModel):
     duration: float
     status: str
     progress: int
+    player1_name: str
+    player2_name: str
+    player1_frame: Optional[str]
+    player2_frame: Optional[str]
     total_shots: int
     total_rallies: int
     shots: List[Dict[str, Any]]
@@ -248,6 +258,40 @@ async def generate_thumbnail(video_path: str) -> Optional[str]:
         logger.error(f"Thumbnail generation error: {str(e)}")
     return None
 
+async def extract_player_frames(video_path: str) -> tuple:
+    """Extract frames from different parts of video to represent each player"""
+    try:
+        cap = cv2.VideoCapture(video_path)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # Get frame from 10% into video for player 1
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(total_frames * 0.1))
+        ret1, frame1 = cap.read()
+        
+        # Get frame from 50% into video for player 2
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(total_frames * 0.5))
+        ret2, frame2 = cap.read()
+        
+        cap.release()
+        
+        player1_frame = None
+        player2_frame = None
+        
+        if ret1:
+            frame1 = cv2.resize(frame1, (200, 150))
+            _, buffer1 = cv2.imencode('.jpg', frame1, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            player1_frame = base64.b64encode(buffer1).decode('utf-8')
+        
+        if ret2:
+            frame2 = cv2.resize(frame2, (200, 150))
+            _, buffer2 = cv2.imencode('.jpg', frame2, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            player2_frame = base64.b64encode(buffer2).decode('utf-8')
+        
+        return player1_frame, player2_frame
+    except Exception as e:
+        logger.error(f"Player frame extraction error: {str(e)}")
+        return None, None
+
 async def process_video_analysis(match_id: str, video_path: str):
     """Background task to process video and run AI analysis"""
     try:
@@ -263,6 +307,14 @@ async def process_video_analysis(match_id: str, video_path: str):
             await db.matches.update_one(
                 {"id": match_id},
                 {"$set": {"thumbnail": thumbnail}}
+            )
+        
+        # Extract player frames
+        player1_frame, player2_frame = await extract_player_frames(video_path)
+        if player1_frame or player2_frame:
+            await db.matches.update_one(
+                {"id": match_id},
+                {"$set": {"player1_frame": player1_frame, "player2_frame": player2_frame}}
             )
         
         # Extract frames
@@ -493,7 +545,9 @@ async def health_check():
 async def upload_match(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    title: str = "Untitled Match"
+    title: str = "Untitled Match",
+    player1_name: str = "Player 1",
+    player2_name: str = "Player 2"
 ):
     """Upload a squash match video for analysis"""
     
@@ -519,6 +573,8 @@ async def upload_match(
     match = MatchAnalysis(
         title=title,
         video_filename=unique_filename,
+        player1_name=player1_name,
+        player2_name=player2_name,
         status="pending"
     )
     

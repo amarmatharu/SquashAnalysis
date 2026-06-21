@@ -485,12 +485,20 @@ const AnalysisPage = () => {
             <div className="grid md:grid-cols-2 gap-6">
               {/* Player 1 */}
               <div className="stat-card rounded-lg border-primary/30" data-testid="player1-stats">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-primary" />
-                  </div>
+                <div className="flex items-center gap-4 mb-4">
+                  {match.player1_frame ? (
+                    <img 
+                      src={`data:image/jpeg;base64,${match.player1_frame}`}
+                      alt={match.player1_name || "Player 1"}
+                      className="w-16 h-12 object-cover rounded-lg border border-primary/50"
+                    />
+                  ) : (
+                    <div className="w-16 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <Users className="w-6 h-6 text-primary" />
+                    </div>
+                  )}
                   <div>
-                    <h3 className="font-heading text-xl font-bold">Player 1</h3>
+                    <h3 className="font-heading text-xl font-bold text-primary">{match.player1_name || "Player 1"}</h3>
                     <p className="text-sm text-muted-foreground">Statistics</p>
                   </div>
                 </div>
@@ -506,12 +514,20 @@ const AnalysisPage = () => {
 
               {/* Player 2 */}
               <div className="stat-card rounded-lg border-[#00F0FF]/30" data-testid="player2-stats">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-[#00F0FF]/20 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[#00F0FF]" />
-                  </div>
+                <div className="flex items-center gap-4 mb-4">
+                  {match.player2_frame ? (
+                    <img 
+                      src={`data:image/jpeg;base64,${match.player2_frame}`}
+                      alt={match.player2_name || "Player 2"}
+                      className="w-16 h-12 object-cover rounded-lg border border-[#00F0FF]/50"
+                    />
+                  ) : (
+                    <div className="w-16 h-12 rounded-lg bg-[#00F0FF]/20 flex items-center justify-center">
+                      <Users className="w-6 h-6 text-[#00F0FF]" />
+                    </div>
+                  )}
                   <div>
-                    <h3 className="font-heading text-xl font-bold">Player 2</h3>
+                    <h3 className="font-heading text-xl font-bold text-[#00F0FF]">{match.player2_name || "Player 2"}</h3>
                     <p className="text-sm text-muted-foreground">Statistics</p>
                   </div>
                 </div>
@@ -543,8 +559,8 @@ const AnalysisPage = () => {
                         }}
                       />
                       <Legend />
-                      <Bar dataKey="player1" fill="#DFFF00" name="Player 1" radius={[0, 4, 4, 0]} />
-                      <Bar dataKey="player2" fill="#00F0FF" name="Player 2" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="player1" fill="#DFFF00" name={match.player1_name || "Player 1"} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="player2" fill="#00F0FF" name={match.player2_name || "Player 2"} radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -593,14 +609,14 @@ const AnalysisPage = () => {
                   ))}
                   
                   {/* Legend */}
-                  <div className="absolute bottom-2 left-2 flex items-center gap-4 text-xs">
+                  <div className="absolute bottom-2 left-2 flex items-center gap-4 text-xs bg-black/60 px-2 py-1 rounded">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-full bg-primary" />
-                      <span>P1</span>
+                      <span>{match.player1_name || "P1"}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-full bg-[#00F0FF]" />
-                      <span>P2</span>
+                      <span>{match.player2_name || "P2"}</span>
                     </div>
                   </div>
                 </div>
