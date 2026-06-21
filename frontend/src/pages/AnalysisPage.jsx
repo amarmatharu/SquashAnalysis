@@ -52,16 +52,20 @@ const AnalysisPage = () => {
 
   useEffect(() => {
     fetchMatch();
+  }, [matchId]);
+
+  // Separate effect for polling
+  useEffect(() => {
+    if (!match || match.status === "completed" || match.status === "failed") {
+      return;
+    }
     
-    // Poll for updates if still processing
     const interval = setInterval(() => {
-      if (match?.status === "processing" || match?.status === "pending") {
-        fetchMatch(true);
-      }
-    }, 3000);
+      fetchMatch(true);
+    }, 2000);
     
     return () => clearInterval(interval);
-  }, [matchId]);
+  }, [match?.status, matchId]);
 
   const fetchMatch = async (silent = false) => {
     if (!silent) setLoading(true);
