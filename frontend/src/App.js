@@ -6,6 +6,8 @@ import PlayerSelectPage from "./pages/PlayerSelectPage";
 import DashboardPage from "./pages/DashboardPage";
 import HistoryPage from "./pages/HistoryPage";
 import AnalysisPage from "./pages/AnalysisPage";
+import BallAnnotationPage from "./pages/BallAnnotationPage";
+import TrainingLibraryPage from "./pages/TrainingLibraryPage";
 import "./App.css";
 
 function App() {
@@ -19,6 +21,8 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/analysis/:matchId" element={<AnalysisPage />} />
+          <Route path="/annotate-ball/:matchId" element={<BallAnnotationPage />} />
+          <Route path="/training-library" element={<TrainingLibraryPage />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />

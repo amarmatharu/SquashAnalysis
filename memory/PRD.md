@@ -1,5 +1,10 @@
 # SquashSense AI - Product Requirements Document
 
+> **See [ML_ROADMAP.md](ML_ROADMAP.md)** for the technical plan to a squash-specialized
+> model (perception spine → labeled dataset → trained shot classifier → LLM reasoning).
+> The original GPT-vision frame-sampling approach below is superseded for fine-grained
+> shot analysis; movement metrics are now produced by the perception spine without an LLM.
+
 ## Original Problem Statement
 Build the world's first AI-powered Squash analysis software that can take any squash match video and analyze it to give valuable information including shot categorization, rallies, swings, player movement, court coverage, and more.
 
