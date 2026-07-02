@@ -24,7 +24,8 @@ import {
   Download,
   MoreVertical,
   FileJson,
-  FileText
+  FileText,
+  Crosshair
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -143,6 +144,12 @@ const HistoryPage = () => {
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
             </Link>
+            <Link to="/training-library">
+              <Button variant="outline" className="border-border">
+                <Crosshair className="w-4 h-4 mr-2" />
+                Training Library
+              </Button>
+            </Link>
             <Link to="/upload">
               <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                 <Upload className="w-4 h-4 mr-2" />
@@ -253,7 +260,14 @@ const HistoryPage = () => {
                         <FileText className="w-4 h-4 mr-2" />
                         Export PDF
                       </DropdownMenuItem>
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
+                        onClick={() => navigate(`/annotate-ball/${match.id}`)}
+                        className="cursor-pointer"
+                      >
+                        <Crosshair className="w-4 h-4 mr-2" />
+                        Label Ball Data
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         onClick={() => setDeleteId(match.id)}
                         className="cursor-pointer text-destructive focus:text-destructive"
                       >
